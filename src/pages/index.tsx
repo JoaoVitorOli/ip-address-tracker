@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Head from 'next/head';
+import ReactLoading from "react-loading";
 
 import api from "../services/api";
 
@@ -17,24 +18,63 @@ interface DataProps {
   longitude: number,
 }
 
-export default function Home({ result, ipifyKey }) {
+export default function Home({ ipifyKey }) {
   const Map = dynamic(
     () => import('../components/Map'),
-    { ssr: false } 
+    { ssr: false }
   );
 
-  const [data, setData] = useState({} as DataProps);
+  const [data, setData] = useState({
+    ip: "44.234.32.103",
+    city: "Portland",
+    countryCode: "US",
+    timezone: "-07:00",
+    isp: "Amazon.com, Inc.",
+    latitude: 45.52345,
+    longitude: -122.67621
+  } as DataProps);
   const [inputValue, setInputValue] = useState("");
   const [hasError, setHasError] = useState(false);
+  const [hasLoading, setHasLoading] = useState(false);
 
   useEffect(() => {
+    setHasLoading(true);
+    getInitialData();
+    setHasLoading(false);
     setHasError(false);
-    setData(result);
-  }, [result]);
+  }, []);
 
-  async function handleDoGet() {
-    if (!inputValue) {
+  function getInitialData() {
+    setHasLoading(true);
+    api.get(`api/v1?apiKey=${ipifyKey}`).then((resp) => {
+      const { data } = resp;
+
+      if (!data) {
+        console.log("data null");
+        return {
+          notFound: true,
+        }
+      }
+  
+      const result = {
+        ip: data.ip,
+        city: data.location.city,
+        countryCode: data.location.country,
+        timezone: data.location.timezone,
+        isp: data.isp,
+        latitude: data.location.lat,
+        longitude: data.location.lng,
+      }
+
       setData(result);
+      setHasLoading(false);
+    });
+  }
+  
+  async function handleDoGet() {
+    setHasLoading(true);
+    if (!inputValue) {
+      getInitialData();
 
       return;
     }
@@ -55,6 +95,7 @@ export default function Home({ result, ipifyKey }) {
       setHasError(false);
   
       setData(result);
+      setHasLoading(false);
     } catch (err) {
       setHasError(true);
     }
@@ -76,7 +117,14 @@ export default function Home({ result, ipifyKey }) {
             onChange={(e) => setInputValue(e.target.value)}
           />
           <button type="button" onClick={handleDoGet}>
-            <img src="icon-arrow.svg" alt="Icon arrow"/>
+            {hasLoading ? (
+            <div style={{width: "100%", height: "100%", alignItems: "center", display: "flex", justifyContent: "center"}}>
+              <ReactLoading type="spin" color="#fff" height={25} width={25}/>
+            </div>
+            ) : (
+              <img src="icon-arrow.svg" alt="Icon arrow"/>
+            )}
+            
           </button>
         </div>
 
@@ -114,28 +162,9 @@ export default function Home({ result, ipifyKey }) {
 
 export const getStaticProps: GetStaticProps = async () => {
   const ipifyKey = process.env.IPIFY_API_KEY;
-  const { data } = await api.get(`api/v1?apiKey=${ipifyKey}`);
-
-  if (!data) {
-    console.log("data null");
-    return {
-      notFound: true,
-    }
-  }
-
-  const result = {
-    ip: data.ip,
-    city: data.location.city,
-    countryCode: data.location.country,
-    timezone: data.location.timezone,
-    isp: data.isp,
-    latitude: data.location.lat,
-    longitude: data.location.lng,
-  }
 
   return {
     props: { 
-      result,
       ipifyKey
     },
   }
